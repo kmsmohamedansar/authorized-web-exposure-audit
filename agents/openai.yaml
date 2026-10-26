@@ -1,0 +1,4 @@
+interface:
+  display_name: "Authorized Web Exposure Audit"
+  short_description: "Passive checks for accidental public exposure"
+  default_prompt: "Use $authorized-web-exposure-audit to audit an authorized website scope for accidental public exposure."

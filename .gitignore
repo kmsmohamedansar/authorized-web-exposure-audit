@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Generated audit reports
+audit-output/
+demo-output/
+
+# Authorization records may contain internal contacts and target details
+approved-scope.json
+*-approved-scope.json
+
