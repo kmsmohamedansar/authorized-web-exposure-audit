@@ -4,7 +4,9 @@ import json
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +62,72 @@ class SafetyTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=5)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("require --scope", result.stderr)
+
+
+class HttpSafetyTests(unittest.TestCase):
+    def run_fixture(self, status=200, body=b"<html>ok</html>", headers=None, max_requests=1):
+        requests = []
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                requests.append(self.path)
+                self.send_response(status)
+                self.send_header("Content-Type", "text/html")
+                for key, value in (headers or {}).items():
+                    self.send_header(key, value)
+                self.end_headers()
+                try:
+                    self.wfile.write(body)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                result = subprocess.run([sys.executable, str(ROOT / "scripts" / "audit_site.py"),
+                                         f"http://127.0.0.1:{server.server_port}/", "--output-dir", directory,
+                                         "--max-requests", str(max_requests), "--rate", "2"],
+                                        capture_output=True, text=True, timeout=10)
+                report = json.loads((Path(directory) / "findings.json").read_text())
+                return result, report, requests
+        finally:
+            server.shutdown()
+            thread.join()
+            server.server_close()
+
+    def test_request_ceiling_limits_actual_requests(self):
+        result, report, requests = self.run_fixture(max_requests=1)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(report["run"]["requests_made"], 1)
+
+    def test_rate_limit_response_stops_without_retry(self):
+        result, report, requests = self.run_fixture(status=429, max_requests=5)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("429", report["run"]["stop_reason"])
+        self.assertEqual(len(requests), 1)
+
+    def test_login_form_stops_before_following_queued_paths(self):
+        result, report, requests = self.run_fixture(body=b'<html><input type="password"></html>', max_requests=5)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("login/password", report["run"]["stop_reason"])
+        self.assertEqual(len(requests), 1)
+
+    def test_oversized_body_is_discarded(self):
+        result, report, requests = self.run_fixture(body=b"x" * (audit.MAX_BODY_BYTES + 1), max_requests=5)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("exceeded", report["run"]["stop_reason"])
+        self.assertEqual(len(requests), 1)
+        self.assertNotIn("x" * 100, json.dumps(report))
+
+    def test_out_of_scope_redirect_is_not_followed(self):
+        result, report, requests = self.run_fixture(status=302, headers={"Location": "https://example.test/"}, max_requests=5)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("redirect", report["run"]["stop_reason"])
+        self.assertEqual(len(requests), 1)
 
 
 if __name__ == "__main__":
