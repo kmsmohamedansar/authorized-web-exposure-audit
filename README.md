@@ -4,6 +4,8 @@ A conservative, authorization-first skill for finding accidental exposure on a w
 
 The project works as a reusable skill in both Codex and Claude Code and includes a deliberately vulnerable localhost fixture for safe demonstrations.
 
+[Download version 1.0.0](https://github.com/kmsmohamedansar/authorized-web-exposure-audit/releases/tag/v1.0.0) · [Sanitized sample findings](examples/sample-findings.md)
+
 ## Why this project exists
 
 Modern web applications often expose more client-side information than teams intend: an OpenAPI document left public, an endpoint referenced in a bundle, a secret-like value embedded during a build, a document listed in a sitemap, or an unsafe header combination. This tool provides a repeatable way to review those signals while maintaining strict authorization and evidence-minimization boundaries.
