@@ -16,6 +16,7 @@ It is not a vulnerability scanner, exploit framework, paywall bypass tool, or su
 - Allows localhost demonstrations without external network traffic.
 - Uses unauthenticated `GET` requests only.
 - Stays on exact approved hosts, schemes, ports, and path prefixes.
+- Rejects percent-encoded, backslash, and dot-segment paths to avoid ambiguous server-side path normalization.
 - Never fetches discovered API endpoints, document links, source maps, or private-looking routes.
 - Redacts suspected secrets and records only a short fingerprint.
 - Enforces request, rate, timeout, body-size, and error ceilings.

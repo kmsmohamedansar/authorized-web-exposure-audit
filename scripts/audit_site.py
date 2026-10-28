@@ -65,6 +65,17 @@ class AuditError(Exception):
     pass
 
 
+def safe_path(path: str) -> bool:
+    """Reject ambiguous paths that servers or proxies might normalize differently."""
+    return (
+        path.startswith("/")
+        and "%" not in path
+        and "\\" not in path
+        and not any(ord(char) < 32 or ord(char) == 127 for char in path)
+        and not any(part in {".", ".."} for part in path.split("/"))
+    )
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
         return None
@@ -96,13 +107,17 @@ class TargetRule:
     excluded: tuple[str, ...]
 
     def permits(self, url: str) -> bool:
-        parsed = urllib.parse.urlsplit(url)
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        try:
+            parsed = urllib.parse.urlsplit(url)
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        except ValueError:
+            return False
         path = parsed.path or "/"
         return (
             parsed.scheme == self.scheme
             and (parsed.hostname or "").lower() == self.host
             and port == self.port
+            and safe_path(path)
             and any(path.startswith(prefix) for prefix in self.allowed)
             and not any(path.startswith(prefix) for prefix in self.excluded)
             and not parsed.username
@@ -167,7 +182,7 @@ def validate_prefixes(value: Any, key: str, *, allow_empty: bool = False) -> tup
         raise AuditError(f"scope field {key!r} must be a {'possibly empty ' if allow_empty else ''}list")
     result: list[str] = []
     for item in value:
-        if not isinstance(item, str) or not item.startswith("/") or "?" in item or "#" in item:
+        if not isinstance(item, str) or not safe_path(item) or "?" in item or "#" in item:
             raise AuditError(f"scope field {key!r} contains an invalid path prefix")
         result.append(item)
     return tuple(result)

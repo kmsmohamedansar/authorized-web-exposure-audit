@@ -30,6 +30,13 @@ class SafetyTests(unittest.TestCase):
         with self.assertRaises(audit.AuditError):
             audit.build_plan("https://example.test/public/", ["/admin"], [self.rule])
 
+    def test_ambiguous_paths_cannot_escape_scope(self):
+        for path in ("/public/../admin", "/public/%2e%2e/admin", "/public/%252e%252e/admin", "/public/..\\admin", "/public/%2fadmin"):
+            with self.subTest(path=path):
+                self.assertFalse(self.rule.permits("https://example.test" + path))
+                with self.assertRaises(audit.AuditError):
+                    audit.validate_prefixes([path], "allowed")
+
     def test_redirect_handler_never_follows_redirects(self):
         self.assertIsNone(audit.NoRedirect().redirect_request(None, None, 302, "Found", {}, "https://other.test/"))
 
