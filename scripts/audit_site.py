@@ -9,6 +9,7 @@ import hashlib
 import html
 import ipaddress
 import json
+import math
 import re
 import sys
 import time
@@ -214,7 +215,7 @@ def load_scope(path: Path) -> tuple[dict[str, Any], list[TargetRule]]:
         port = raw.get("port")
         if scheme not in {"http", "https"} or not host or "*" in host or "/" in host:
             raise AuditError("scope target requires an exact host and http/https scheme")
-        if not isinstance(port, int) or not 1 <= port <= 65535:
+        if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
             raise AuditError("scope target port must be an integer from 1 to 65535")
         rules.append(
             TargetRule(
@@ -227,10 +228,12 @@ def load_scope(path: Path) -> tuple[dict[str, Any], list[TargetRule]]:
                 ),
             )
         )
-    for key, hard_cap in (("max_requests", HARD_MAX_REQUESTS), ("max_requests_per_second", HARD_MAX_RATE)):
-        value = data.get(key)
-        if not isinstance(value, (int, float)) or value <= 0 or value > hard_cap:
-            raise AuditError(f"scope {key} must be greater than 0 and no more than {hard_cap}")
+    requests = data.get("max_requests")
+    if isinstance(requests, bool) or not isinstance(requests, int) or not 1 <= requests <= HARD_MAX_REQUESTS:
+        raise AuditError(f"scope max_requests must be an integer from 1 to {HARD_MAX_REQUESTS}")
+    rate = data.get("max_requests_per_second")
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not math.isfinite(rate) or not 0 < rate <= HARD_MAX_RATE:
+        raise AuditError(f"scope max_requests_per_second must be finite, greater than 0 and no more than {HARD_MAX_RATE}")
     return data, rules
 
 
