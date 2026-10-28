@@ -1,5 +1,6 @@
 """Offline regression tests for the audit's public safety boundaries."""
 import importlib.util
+import datetime
 import json
 import subprocess
 import sys
@@ -62,6 +63,41 @@ class SafetyTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=5)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("require --scope", result.stderr)
+
+    def test_scope_rejects_malformed_numeric_limits_and_ports(self):
+        today = datetime.date.today().isoformat()
+        base = {"authorization_confirmed": True, "organization": "Example", "authorized_by": "Owner",
+                "security_contact": "owner@example.test", "valid_from": today, "expires": today,
+                "targets": [{"scheme": "https", "host": "example.test", "port": 443,
+                             "allowed_path_prefixes": ["/"]}],
+                "max_requests": 5, "max_requests_per_second": 1}
+        invalid = [("max_requests", True), ("max_requests", 0.5), ("max_requests", 101),
+                   ("max_requests_per_second", True), ("max_requests_per_second", float("nan")),
+                   ("max_requests_per_second", float("inf")), ("max_requests_per_second", 0)]
+        with tempfile.TemporaryDirectory() as directory:
+            scope = Path(directory) / "scope.json"
+            scope.write_text(json.dumps(base))
+            self.assertEqual(audit.load_scope(scope)[0]["max_requests"], 5)
+            for key, value in invalid:
+                with self.subTest(key=key, value=value):
+                    bad = dict(base, **{key: value})
+                    scope.write_text(json.dumps(bad))
+                    with self.assertRaises(audit.AuditError):
+                        audit.load_scope(scope)
+            bad = dict(base, targets=[dict(base["targets"][0], port=True)])
+            scope.write_text(json.dumps(bad))
+            with self.assertRaises(audit.AuditError):
+                audit.load_scope(scope)
+
+            # A malformed live scope must fail during validation, before a request or report.
+            scope.write_text(json.dumps(dict(base, max_requests=True)))
+            output = Path(directory) / "output"
+            result = subprocess.run([sys.executable, str(ROOT / "scripts" / "audit_site.py"),
+                                     "https://example.test/", "--scope", str(scope),
+                                     "--output-dir", str(output)], capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("max_requests", result.stderr)
+            self.assertFalse(output.exists())
 
 
 class HttpSafetyTests(unittest.TestCase):

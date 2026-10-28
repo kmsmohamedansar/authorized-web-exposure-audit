@@ -33,6 +33,7 @@ Requirements:
 - Allowed prefixes must begin with `/`. Exclusions override allowances.
 - `authorization_confirmed` must be `true`, and the organization, authorizer, contact, and validity fields must be non-empty.
 - Limits may be stricter than the helper defaults, never looser than its hard caps.
+- `max_requests` must be a whole number. The request rate must be a finite number; booleans are not valid for limits or ports.
 - The helper does not verify that the named authorizer has legal authority. The human operator must do so before approving a live run.
 
 Keep the approved scope file with the engagement record. Do not commit internal contacts, tickets, or target details to a public repository.
