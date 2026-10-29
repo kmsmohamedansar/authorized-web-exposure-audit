@@ -81,6 +81,23 @@ python3 scripts/audit_site.py \
 
 The fixture contains fake data only. Expected findings include public API documentation, endpoint references, a redacted fake secret, public-document references, and a deliberately risky CORS configuration.
 
+For example, a run against the fixture produced this excerpt in `findings.md`:
+
+```text
+Requests: 9 (limit 30)
+Stop reason: Completed planned requests
+
+F-004: API documentation is publicly reachable
+  Severity: informational; confidence: high
+  Public availability may be intentional; confirm expected state with the owner.
+
+F-006: Suspected assigned secret-like value in public client content
+  Severity: high; confidence: medium
+  Pattern match only; value was not tested or reproduced in output.
+```
+
+The numbers and findings depend on the target and settings. This example is from the fake localhost fixture, not a live organization's site. The full report includes redacted evidence and observations; an endpoint reference or public document is not automatically a vulnerability.
+
 ## Installing as a skill
 
 Keep the entire folder together.
