@@ -4,7 +4,7 @@ A conservative, authorization-first skill for finding accidental exposure on a w
 
 The project works as a reusable skill in both Codex and Claude Code and includes a deliberately vulnerable localhost fixture for safe demonstrations.
 
-[Download version 1.0.0](https://github.com/kmsmohamedansar/authorized-web-exposure-audit/releases/tag/v1.0.0) · [Sanitized sample findings](examples/sample-findings.md)
+[Download the latest release](https://github.com/kmsmohamedansar/authorized-web-exposure-audit/releases/latest) · [Sanitized sample findings](examples/sample-findings.md)
 
 ## Why this project exists
 
