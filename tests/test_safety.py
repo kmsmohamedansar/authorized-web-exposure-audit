@@ -128,42 +128,53 @@ class HttpSafetyTests(unittest.TestCase):
                                          "--max-requests", str(max_requests), "--rate", "2"],
                                         capture_output=True, text=True, timeout=10)
                 report = json.loads((Path(directory) / "findings.json").read_text())
-                return result, report, requests
+                markdown = (Path(directory) / "findings.md").read_text()
+                return result, report, requests, markdown
         finally:
             server.shutdown()
             thread.join()
             server.server_close()
 
     def test_request_ceiling_limits_actual_requests(self):
-        result, report, requests = self.run_fixture(max_requests=1)
+        result, report, requests, _ = self.run_fixture(max_requests=1)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(len(requests), 1)
         self.assertEqual(report["run"]["requests_made"], 1)
 
     def test_rate_limit_response_stops_without_retry(self):
-        result, report, requests = self.run_fixture(status=429, max_requests=5)
+        result, report, requests, _ = self.run_fixture(status=429, max_requests=5)
         self.assertEqual(result.returncode, 3)
         self.assertIn("429", report["run"]["stop_reason"])
         self.assertEqual(len(requests), 1)
 
     def test_login_form_stops_before_following_queued_paths(self):
-        result, report, requests = self.run_fixture(body=b'<html><input type="password"></html>', max_requests=5)
+        result, report, requests, _ = self.run_fixture(body=b'<html><input type="password"></html>', max_requests=5)
         self.assertEqual(result.returncode, 3)
         self.assertIn("login/password", report["run"]["stop_reason"])
         self.assertEqual(len(requests), 1)
 
     def test_oversized_body_is_discarded(self):
-        result, report, requests = self.run_fixture(body=b"x" * (audit.MAX_BODY_BYTES + 1), max_requests=5)
+        result, report, requests, _ = self.run_fixture(body=b"x" * (audit.MAX_BODY_BYTES + 1), max_requests=5)
         self.assertEqual(result.returncode, 3)
         self.assertIn("exceeded", report["run"]["stop_reason"])
         self.assertEqual(len(requests), 1)
         self.assertNotIn("x" * 100, json.dumps(report))
 
     def test_out_of_scope_redirect_is_not_followed(self):
-        result, report, requests = self.run_fixture(status=302, headers={"Location": "https://example.test/"}, max_requests=5)
+        result, report, requests, _ = self.run_fixture(status=302, headers={"Location": "https://example.test/"}, max_requests=5)
         self.assertEqual(result.returncode, 3)
         self.assertIn("redirect", report["run"]["stop_reason"])
         self.assertEqual(len(requests), 1)
+
+    def test_secret_is_redacted_from_generated_reports_and_console(self):
+        secret = "ghp_" + "A" * 40  # Synthetic fixture, never a real credential.
+        body = f"<html><script>const token = '{secret}';</script></html>".encode()
+        result, report, requests, markdown = self.run_fixture(body=body)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(len(requests), 1)
+        self.assertTrue(any(finding.get("evidence", {}).get("sha256_12") for finding in report["findings"]))
+        for output in (json.dumps(report), markdown, result.stdout, result.stderr):
+            self.assertNotIn(secret, output)
 
 
 if __name__ == "__main__":
