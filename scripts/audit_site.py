@@ -21,7 +21,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 HARD_MAX_REQUESTS = 100
 HARD_MAX_RATE = 2.0
 HARD_MAX_TIMEOUT = 20.0
